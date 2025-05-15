@@ -1,5 +1,3 @@
-def main():
-    send_email("✅ Test Alert", "This is a test of the weather alert system from Clayton's Weather.")
 import os
 import requests
 import json
