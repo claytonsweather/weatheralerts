@@ -1,3 +1,6 @@
+import os
+import requests
+import json
 from alert_utils import get_alerts, filter_alerts, format_alert
 from email_utils import send_email
 
