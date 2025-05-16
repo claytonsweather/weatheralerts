@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Clayton's Weather Alert Control</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #eef6fb;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    h1 { font-size: 1.5rem; }
+    label, textarea, input, button {
+      display: block;
+      width: 100%;
+      margin-top: 1rem;
+    }
+    textarea { height: 80px; }
+    button {
+      margin-top: 1.5rem;
+      padding: 0.6rem;
+      background: #0077cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #status { margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>⚙️ Weather Alert Control</h1>
+
+    <label><input type="checkbox" id="enabled" checked> Enable Alerts</label>
+
+    <label for="zones">Zone Codes (comma separated)</label>
+    <textarea id="zones">TXZ213, TXZ214, TXZ226, TXZ227, TXZ237, TXZ238, TXZ335</textarea>
+
+    <button onclick="sendTest()">📩 Send Test Alert</button>
+
+    <p id="status">Status: Waiting...</p>
+  </div>
+
+  <script>
+    async function sendTest() {
+      const status = document.getElementById('status');
+      status.textContent = 'Sending...';
+
+      const res = await fetch('https://api.github.com/repos/claytonsweather/weatheralerts/actions/workflows/alert-runner.yml/dispatches', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/vnd.github+json',
+          'Authorization': 'Bearer YOUR_PERSONAL_ACCESS_TOKEN',
+          'X-GitHub-Api-Version': '2022-11-28'
+        },
+        body: JSON.stringify({ ref: 'main', inputs: { test: 'true' } })
+      });
+
+      if (res.ok) {
+        status.textContent = '✅ Test alert triggered!';
+      } else {
+        const err = await res.text();
+        status.textContent = '❌
