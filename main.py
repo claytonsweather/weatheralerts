@@ -1,95 +1,73 @@
-import requests
 import os
-import json
+import sys
+import requests
 from email_utils import send_email
+from gist_utils import load_sent_alerts, save_sent_alerts
 
-# Config
-GIST_ID = "cc77ca8c82ed2627b2ea5d57e4743efa"
-GIST_FILENAME = "sent_alerts.json"
-GIST_API_URL = f"https://api.github.com/gists/{GIST_ID}"
-NWS_ALERTS_URL = "https://api.weather.gov/alerts/active"
-MONITORED_LOCATIONS = [
-    "new braunfels", "houston", "west columbia",
-    "pearland", "lake jackson", "angleton", "clute"
+# NWS Zone Codes for your Texas locations
+ZONE_CODES = [
+    "TXZ213",  # Houston
+    "TXZ226",  # West Columbia
+    "TXZ227",  # Lake Jackson
+    "TXZ228",  # Angleton / Clute
+    "TXZ237",  # Pearland
+    "TXZ209",  # New Braunfels
 ]
 
-HEADERS = {
-    "Authorization": f"token {os.environ['GIST_TOKEN']}",
-    "Accept": "application/vnd.github.v3+json"
-}
-
-def load_sent_alerts():
+def fetch_alerts(zone_code):
+    url = f"https://api.weather.gov/alerts/active/zone/{zone_code}"
+    headers = {"User-Agent": "ClaytonWeatherAlerts/1.0"}
     try:
-        response = requests.get(GIST_API_URL, headers=HEADERS)
+        response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
-        files = response.json()["files"]
-        if GIST_FILENAME in files:
-            content = files[GIST_FILENAME]["content"]
-            return json.loads(content)
-        else:
-            print(f"⚠️ File {GIST_FILENAME} not found in the Gist.")
-            return []
+        return response.json().get("features", [])
     except Exception as e:
-        print(f"❌ Error loading sent alerts: {e}")
+        print(f"⚠️ Error fetching alerts for {zone_code}: {e}")
         return []
 
-def save_sent_alerts(alert_ids):
-    try:
-        updated_file = {
-            "files": {
-                GIST_FILENAME: {
-                    "content": json.dumps(alert_ids, indent=2)
-                }
-            }
-        }
-        response = requests.patch(GIST_API_URL, headers=HEADERS, json=updated_file)
-        response.raise_for_status()
-        print("✅ Sent alerts saved to Gist.")
-    except Exception as e:
-        print(f"❌ Error saving sent alerts: {e}")
+def format_alert(alert):
+    props = alert["properties"]
+    return f"""
+⚠️ **{props.get('event', 'Unknown Event')}**
+{props.get('headline', '')}
 
-def fetch_nws_alerts():
-    try:
-        response = requests.get(NWS_ALERTS_URL)
-        response.raise_for_status()
-        return response.json()["features"]
-    except Exception as e:
-        print(f"❌ Error fetching NWS alerts: {e}")
-        return []
+{props.get('description', '').strip()}
 
-def is_for_monitored_location(area_desc):
-    area = area_desc.lower()
-    return any(loc in area for loc in MONITORED_LOCATIONS)
+🚨 **Effective:** {props.get('effective')}
+🕔 **Expires:** {props.get('expires')}
+
+🔗 {props.get('uri')}
+""".strip()
 
 def main():
-    sent_alerts = load_sent_alerts()
-    alerts = fetch_nws_alerts()
-    new_alerts_sent = 0
+    test_mode = '--test' in sys.argv
+    if test_mode:
+        send_email("✅ Test Alert", "This is a test of the weather alert system.")
+        print("✅ Test alert sent.")
+        return
 
-    for alert in alerts:
-        props = alert["properties"]
-        area_desc = props.get("areaDesc", "")
-        if not is_for_monitored_location(area_desc):
-            continue
+    sent_alerts = load_sent_alerts() or set()
+    new_alerts = []
+    new_ids = set()
 
-        alert_id = alert["id"]
-        if alert_id in sent_alerts:
-            continue
+    for zone in ZONE_CODES:
+        alerts = fetch_alerts(zone)
+        for alert in alerts:
+            alert_id = alert["id"]
+            if alert_id not in sent_alerts:
+                print(f"📬 New alert found: {alert_id}")
+                new_alerts.append(alert)
+                new_ids.add(alert_id)
 
-        title = props.get("headline", "⚠️ Weather Alert")
-        description = props.get("description", "No description provided.")
-        instruction = props.get("instruction", "")
+    for alert in new_alerts:
+        message = format_alert(alert)
+        title = alert["properties"].get("event", "Weather Alert")
+        send_email(f"🌩️ {title}", message)
 
-        alert_msg = f"{title}\n\nArea: {area_desc}\n\n{description}\n\n{instruction}"
-        send_email(f"🌩️ {title}", alert_msg)
-
-        sent_alerts.append(alert_id)
-        new_alerts_sent += 1
-
-    if new_alerts_sent:
+    if new_ids:
+        sent_alerts.update(new_ids)
         save_sent_alerts(sent_alerts)
-    else:
-        print("✅ No new alerts to send.")
 
 if __name__ == "__main__":
     main()
+
