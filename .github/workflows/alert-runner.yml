@@ -1,0 +1,42 @@
+name: Run Weather Alert System
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # Every 5 minutes
+  workflow_dispatch:
+    inputs:
+      test:
+        description: 'Run in test mode'
+        required: false
+        default: 'false'
+
+jobs:
+  run-alerts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run alert system
+        env:
+          EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+        run: |
+          echo "Running weather alerts..."
+          if [[ "${{ github.event.inputs.test }}" == "true" ]]; then
+            echo "Test mode activated"
+            python main.py --test
+          else
+            python main.py
+
