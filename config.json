@@ -1,0 +1,4 @@
+{
+  "enabled": true,
+  "zones": ["TXZ213", "TXZ214", "TXZ226", "TXZ227", "TXZ237", "TXZ238", "TXZ335"]
+}
